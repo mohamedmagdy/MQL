@@ -1,0 +1,571 @@
+#!/bin/bash -
+#===============================================================================
+#
+#          FILE: mql.sh
+# 
+#         USAGE: ./mql.sh 
+# 
+#   DESCRIPTION: 
+# 
+#       OPTIONS: ---
+#  REQUIREMENTS: Linux Distribution
+#          BUGS: ---
+#         NOTES: ---
+#        AUTHOR: Mohamed Magdy Mahmoud
+#  ORGANIZATION: ITI (OSD)
+#       CREATED: 01/17/2013 12:56:32 PM EET
+#      REVISION:  ---
+#===============================================================================
+
+set -o nounset                              # Treat unset variables as an error
+reset 
+shopt -s extglob
+#-----------------------#
+#  Predefined Variables	#
+#-----------------------#
+x=1			#
+dt=0			#
+val=1			#
+Pri=1  			# is used in *Check_Primary* to hold values (pri OR notpri) i.e, primary OR not primary
+exist=1			# is used in *DB_Existance* and *Table_Existance* to hold values (0 OR 1) i.e, exist OR not exist
+Col_Num=0		# is used in *Create_Table* to hold the number of columns in the new table
+DataType=0		# is used in *Check_Data_Type* to hold values (i OR c) i.e, int OR char
+TableName=0		# 
+InCol_Num=0		# 
+DataBaseName=0		#
+DatabaseName=0		#
+typeset -u Col_Name	# is used in *Create_Table* to make sure that the name of columns will be capital letters
+declare -a datatype	# is an array that used in *Create_Table* to hold the data types of the columns
+PS3='MQL is ready to serve your order: ' # is used in the main script (main body) for the select prompt
+#-----------------------#
+#  Predefined Functions #
+#-----------------------#
+
+#--------------------------------------------------------------------------------------------------#
+# To Check if the values of the first column is Unique or not, Because it is used as a primary key #
+#--------------------------------------------------------------------------------------------------#
+function Check_Primary {  
+	if [[ -n `eval "grep  '|  $1 ' $2"` ]]
+	then
+		Pri=notpri
+	else
+		Pri=pri
+	fi
+} # End Check_Primary
+
+#-------------------------------------------------------------------#
+#  Tables can contain either Integers or Strings, 		    #
+#  Check_Data_Type make sure that it is the case for all the entries#
+#-------------------------------------------------------------------#
+function Check_Data_Type {
+	for ch in $1
+	do
+		case "$ch" in
+			+([0-9])) DataType='i';;
+		  			  *) DataType='c';;
+		esac
+	done
+} # End Check_Data_Type
+
+#------------------------------------------------------------------------------------------#
+#  Drawing_Tables is responsible for the rectangle that surrounding the header of the table#
+#------------------------------------------------------------------------------------------#
+function Drawing_Tables {
+	i=$1
+	echo -n "+" >>  $HOME/DataBase/$DataBaseName/$TableName
+	while [[ $i -le $((Col_Num * 20)) ]]
+	do
+		echo -n - >>  $HOME/DataBase/$DataBaseName/$TableName
+		let i=$((i + 1))
+	done
+	echo "+" >>  $HOME/DataBase/$DataBaseName/$TableName
+	i=0
+} # End Drawing_Tables
+
+#---------------------------------------------------------------------#
+#  To make sure that the used database is created and already existed #
+#---------------------------------------------------------------------#
+function DB_Existance {
+	if [[ -d $1 ]]
+	then 
+		exist=0
+	else 
+		exist=1
+	fi
+} # End DB_Existance
+
+#------------------------------------------------------------------#
+#  To make sure that the used table is created and already existed #
+#------------------------------------------------------------------#
+function Table_Existance {
+	if [[ -f $1 ]]
+	then
+		exist=0
+	else
+		exist=1
+	fi
+} # End Table_Existance
+
+#--------------------------------------------------------------------------------------------------#
+#  When you set values to a specific cell, you need to know which column you are setting its value #
+#  Numbering, let you know if you are in first, second, third ... etc column			   #
+#--------------------------------------------------------------------------------------------------#
+function Numbering {
+	case $1 in
+	1|11|21|31|41|51|61|71|81|91) echo $1'st';;
+	2|12|22|32|42|52|62|72|82|92) echo $1'nd';;
+	3|13|23|33|43|53|63|73|83|93) echo $1'rd';;
+	*) echo $1'th';;
+	esac    # --- end of case ---
+} # End Numbering
+
+#--------------------------------------------------------------------------------------#
+#  When creating new database, Create_DataBase will check if there was an old database #
+#  with the same name as the new one, if not the new database will be created	       #
+#--------------------------------------------------------------------------------------#
+function Create_DataBase {
+	echo -n "Enter The name of the database: "
+	read DatabaseName
+	DB_Existance $HOME/DataBase/$DatabaseName
+	if [[ $exist -eq 0 ]]
+	then 
+		echo $DatabaseName is already existed 
+		echo Try again with non-existed database
+		Create_DataBase
+	else
+		mkdir -p $HOME/DataBase/$DatabaseName
+	fi
+} # End Create_DataBase
+
+#---------------------------------------------------------------------------------------#
+#  When creating a new table in an existed database, we need to make sure that: 	#
+# 	a- the used database is already existed.					#
+#	b- the new table has different  name than the existed tables.			#
+#  After creating the table, Create_Table will ask for the name of columns (Col_Name)	#
+#  and the datatype of each column and will set the first column as the primary key	#
+#  which must be unique.								#
+#  When setting the data type for each column you must type :				#
+#	"int" for Integers and "char" for Characters					#
+#---------------------------------------------------------------------------------------#
+function Create_Table {
+	echo -n "The Used Database is: "
+	read DataBaseName
+	DB_Existance $HOME/DataBase/$DataBaseName >> /dev/null
+	if [[ $exist -eq 0 ]]	# Make sure That The Database Exists
+	then 
+		echo -n "Enter The name of the table: "
+		read TableName
+		Table_Existance  $HOME/DataBase/$DataBaseName/$TableName 
+		if [[ $exist -eq 0 ]]	# Make sure That The table is not Existed before
+		then
+			Create_Table
+		else 
+			touch $HOME/DataBase/$DataBaseName/$TableName
+			echo -n "How Many col. do you need: "
+			read Col_Num
+			echo $Col_Num >>$HOME/DataBase/$DataBaseName/$TableName
+			Drawing_Tables $Col_Num	 # Draw the rectangle that surrounding the header of the table
+			printf "%-3s" "|" >> $HOME/DataBase/$DataBaseName/$TableName
+			while [[ $x -le $Col_Num ]]
+			do
+				echo -n "Enter The Label of the `Numbering $x` Column: "
+				read Col_Name[$dt]
+				if [[ $dt -eq 0 ]]
+				then
+					echo ${Col_Name[0]} will be The Primary key.
+				fi
+				echo -n "The Datatype of the `Numbering $x` Column is:(int OR char): "
+				read datatype[$dt]
+				if [[ ${datatype[$dt]} = 'int' ]] || [[ ${datatype[$dt]} = 'char' ]]
+				then
+					printf "%-18s" "${Col_Name[$dt]} (${datatype[$dt]})">> $HOME/DataBase/$DataBaseName/$TableName
+					printf "%s" "|">> $HOME/DataBase/$DataBaseName/$TableName
+				else 
+					echo "Sorry, The Data Type must be "int" OR "char"!!"
+					continue
+				fi
+				let x=$((x + 1))
+				let dt=$((dt+1))
+			done	
+			echo "" >> $HOME/DataBase/$DataBaseName/$TableName
+			Drawing_Tables $Col_Num
+		fi	
+	else 
+	echo $DataBaseName Does not Exist!!
+	echo Try again with existed Database.	
+	Create_Table
+	fi
+	x=1
+	dt=0
+} # End Create_Table
+
+#-------------------------------------------------------------------------------
+#  
+#-------------------------------------------------------------------------------
+function Insert_Data {
+	echo -n "The Used Database is: "
+	read DataBaseName
+	DB_Existance $HOME/DataBase/$DataBaseName >> /dev/null
+	if [[ $exist -eq 0 ]]	# Make sure That The Database Exists
+	then 
+		echo -n "Enter The name of the table: "
+		read InTableName
+		Table_Existance  $HOME/DataBase/$DataBaseName/$InTableName 
+		if [[ $exist -eq 0 ]]	# Make sure That The table is not Existed before
+		then
+			echo The table $InTableName has The header: 
+			cat $HOME/DataBase/$DataBaseName/$InTableName | tail -n +2 | head -n3  
+                        printf "%-3s" "|" >> $HOME/DataBase/$DataBaseName/$InTableName
+			InCol_Num=`cat $HOME/DataBase/$DataBaseName/$InTableName | head -n1`
+                        while [[ $val -le $InCol_Num ]]
+                        do
+                                echo -n "Enter The Value of the `Numbering $val` Column: "
+                                read Col_Value[$((val-1))]
+				if [[ -z ${Col_Value[$((val-1))]} ]]
+				then
+					continue
+				fi
+ 				TestType=`cut -d'(' -f$((val+1)) $HOME/DataBase/$DataBaseName/$InTableName | cut -d')' -f1 | head -n3 | tail -n1`
+				if [[ $((val-1)) -eq 0 ]] 
+				then
+					Check_Primary  ${Col_Value[$((val-1))]} $HOME/DataBase/$DataBaseName/$InTableName
+					if [[ $Pri = 'pri' ]]
+					then
+						ls >> /dev/null
+					else 
+						echo `eval "head -n3 $HOME/DataBase/$DataBaseName/$InTableName | tail -n1| cut -d' ' -f3" `  is a Primary Key and must be Unique
+						continue
+					fi
+				fi
+				if [[ $TestType = 'int' ]]
+				then
+					Check_Data_Type ${Col_Value[$((val-1))]}
+					if [[ $DataType = 'i' ]] 
+					then
+						printf "%-18s" "${Col_Value[$((val-1))]}">> $HOME/DataBase/$DataBaseName/$InTableName
+						printf "%s" "|">> $HOME/DataBase/$DataBaseName/$InTableName
+					else 
+						echo The Entry has Different Datatype.
+						echo Please, Retry With an Integer.
+						continue
+					fi
+				elif [[ $TestType = 'char' ]]
+				then
+					Check_Data_Type ${Col_Value[$((val-1))]}
+					if [[ $DataType = 'c' ]] 
+					then
+						printf "%-18s" "${Col_Value[$((val-1))]}">> $HOME/DataBase/$DataBaseName/$InTableName
+						printf "%s" "|">> $HOME/DataBase/$DataBaseName/$InTableName
+					else 
+						echo The Entry has Different Datatype.
+						echo Please, Retry With a String.
+						continue
+					fi
+				else
+					continue
+				fi
+                                let val=$((val + 1))
+                        done
+                        echo "" >> $HOME/DataBase/$DataBaseName/$InTableName
+		else 
+			echo $InTableName Does not Exist!!
+		        echo Try again with existed Table.
+			Insert_Data   
+		fi	
+	else 
+	echo $DataBaseName Does not Exist!!
+	echo Try again with existed Database.	
+	Insert_Data
+	fi
+	val=1
+} # End Insert_Data
+
+function Update_Records {
+        echo -n "The Used Database is: "
+        read URDataBaseName
+        DB_Existance $HOME/DataBase/$URDataBaseName >> /dev/null
+        if [[ $exist -eq 0 ]]   # Make sure That The Database Exists
+        then
+                echo -n "Enter The name of the table: "
+                read URTableName
+                Table_Existance  $HOME/DataBase/$URDataBaseName/$URTableName
+                if [[ $exist -eq 0 ]]   # Make sure That The table is not Existed before
+                then
+		while true
+		do
+			Pri=0
+                        echo -n "Enter The Primary key of The Record: "
+                        read Urecord
+			Check_Primary $Urecord $HOME/DataBase/$URDataBaseName/$URTableName
+			if [[ $Pri = 'notpri' ]]
+			then
+				echo -n "Enter The Old Value: "
+				read OldVal
+				echo -n "Enter The New Value: "
+				read NewVal
+				Check_Data_Type $OldVal
+				TOldVal=$DataType
+				Check_Data_Type $NewVal
+				TNewVal=$DataType
+				if [[ $TOldVal = $TNewVal ]]
+				then
+					Pri=0
+					Check_Primary $NewVal $HOME/DataBase/$URDataBaseName/$URTableName
+					if [[ $Pri = 'pri' ]]
+					then
+		                        	eval "sed -i '/^|  $Urecord /s/${OldVal}  /${NewVal}/' $HOME/DataBase/$URDataBaseName/$URTableName"
+						break
+					else
+						echo You are trying to change the value of the Primary Key 
+						echo The New Value Is The Same as an existed Primary Key!!
+						echo Try Again with non-existed value
+						continue
+					fi
+				else
+					echo The Data Type of $OldVal is not as the same as $NewVal
+					if [[ $TOldVal = 'i' ]] 
+					then
+						echo Try Again With an integer
+						continue
+					else
+						echo Try Again with a String
+						continue
+					fi
+				fi
+			else
+				echo $Urecord is not found
+				echo Try again with an existed Primary Key
+				continue
+			fi
+		done
+                else
+                        echo The $URTableName does not exist.
+                        Update_Records
+		fi
+        else
+        echo $URDataBaseName Does not Exist!!
+        echo Try again with existed Database.
+        Update_Records
+        fi
+        x=1
+} # End Update_Records
+
+#-----------------------------------------------#
+#  Check if the database is existed or not.	#
+#  If it is already existed it will be deleted.	#
+#-----------------------------------------------#
+function Delete_DataBase {
+	echo -n "Enter The name of the database: "
+	read DDatabaseName
+	DB_Existance $HOME/DataBase/$DDatabaseName
+	if [[ $exist -eq 0 ]]
+	then 
+		rm -rf $HOME/DataBase/$DDatabaseName
+		echo $DDatabaseName is deleted
+	else
+		echo `$DDatabaseName` does not exist
+		echo Try again with an existed database
+		Delete_DataBase
+	fi
+} # End Delete_DataBase
+
+#-----------------------------------------------#
+#  Check if the table is existed or not.	#
+#  If it is already existed it will be deleted.	#
+#-----------------------------------------------#
+function Delete_Table {
+	echo -n "The Used Database is: "
+	read DataBaseName
+	DB_Existance $HOME/DataBase/$DataBaseName >> /dev/null
+	if [[ $exist -eq 0 ]]	# Make sure That The Database Exists
+	then
+		echo -n "Enter The name of the table: "
+		read DTableName
+		Table_Existance  $HOME/DataBase/$DataBaseName/$DTableName 
+		if [[ $exist -eq 0 ]]	# Make sure That The table is not Existed before
+		then
+			rm -rf $HOME/DataBase/$DataBaseName/$DTableName
+		else
+			echo The $DTableName does not exist.
+			Delete_Table
+		fi
+	else
+	echo $DataBaseName Does not Exist!!
+	echo Try again with existed Database.
+	Delete_Table
+	fi
+	x=1
+} # End Delete_Table
+
+
+#--------------------------------------------------------------------------------#
+#  Get the row by the primary key, then delete it after being sure that database #
+#  contains the table in which the row is recorded				 #
+#--------------------------------------------------------------------------------#
+function Delete_Record {
+	echo -n "The Used Database is: "
+	read DRDataBaseName
+	DB_Existance $HOME/DataBase/$DRDataBaseName >> /dev/null
+	if [[ $exist -eq 0 ]]	# Make sure That The Database Exists
+	then
+		echo -n "Enter The name of the table: "
+		read DRTableName
+		Table_Existance  $HOME/DataBase/$DRDataBaseName/$DRTableName 
+		if [[ $exist -eq 0 ]]	# Make sure That The table is not Existed before
+		then
+			echo -n "Enter The Primary key of The Record: "
+			read record
+			eval "sed -i '/|  ${record} /d' $HOME/DataBase/$DRDataBaseName/$DRTableName"
+		else
+			echo The $DRDTableName does not exist.
+			Delete_Record
+		fi
+	else
+	echo $DRDataBaseName Does not Exist!!
+	echo Try again with existed Database.
+	Delete_Record
+	fi
+	x=1
+} # End Delete_Record
+
+function Display_Tables {
+	echo -n Enter The name of the Database: 
+	read DiDatabaseName
+	DB_Existance $HOME/DataBase/$DiDatabaseName
+	if [[ $exist -eq 0 ]]	# Make sure That The Database Exists
+	then 
+		echo The $DiDatabaseName contains: 
+		for tab in `ls -1 $HOME/DataBase/$DiDatabaseName/*`
+		do
+			cat $tab | tail -n +2
+		done
+	else 
+	echo $DataBaseName Does not Exist!!
+	echo Try again with an existed Database.	
+	Display_Tables
+	fi
+} # End Display_Tables
+
+function List_Tables {
+	echo -n Enter The name of the Database: 
+	read LiDatabaseName
+	DB_Existance $HOME/DataBase/$LiDatabaseName
+	if [[ $exist -eq 0 ]]	# Make sure That The Database Exists
+	then 
+		echo The $LiDatabaseName contains: 
+		ls -1 $HOME/DataBase/$LiDatabaseName
+	else 
+	echo $LiDatabaseName Does not Exist!!
+	echo Try again with an existed Database.	
+	List_Tables
+	fi
+} # End List_Tables
+
+function List_DataBases {
+	if [[ -d $HOME/DataBase/ ]]
+	then
+		echo Your Database contains: 
+		ls -1  $HOME/DataBase/
+	else 
+		echo There is no Databases !!
+	fi
+} # End List_DataBases
+
+function Search_in_Table {	
+	echo -n "The Used Database is: "
+	read STDataBaseName
+	DB_Existance $HOME/DataBase/$STDataBaseName >> /dev/null
+	if [[ $exist -eq 0 ]]	# Make sure That The Database Exists
+	then
+		echo -n "Enter The name of the table: "
+		read STableName
+		Table_Existance  $HOME/DataBase/$STDataBaseName/$STableName 
+		if [[ $exist -eq 0 ]]	# Make sure That The table is not Existed before
+		then
+			echo -n "Enter The Primary key of The Record: "
+			read sRecord
+			cat $HOME/DataBase/$STDataBaseName/$STableName | tail -n +2 | head -n3
+			eval "grep  '|  $sRecord ' $HOME/DataBase/$STDataBaseName/$STableName"
+		else
+			echo The $STableName does not exist.
+			Search_in_Table
+		fi
+	else
+	echo $STDataBaseName Does not Exist!!
+	echo Try again with existed Database.
+	Search_in_Table
+	fi
+	x=1
+} # End Search_in_Table
+
+#-------------------------------------------------------------------------------
+#  The Main Script
+#-------------------------------------------------------------------------------
+echo -e "                                                                                                       
+				MMMMMMMM               MMMMMMMM     QQQQQQQQQ     LLLLLLLLLLL             
+				M:::::::M             M:::::::M   QQ:::::::::QQ   L:::::::::L             
+				M::::::::M           M::::::::M QQ:::::::::::::QQ L:::::::::L             
+				M:::::::::M         M:::::::::MQ:::::::QQQ:::::::QLL:::::::LL             
+				M::::::::::M       M::::::::::MQ::::::O   Q::::::Q  L:::::L               
+				M:::::::::::M     M:::::::::::MQ:::::O     Q:::::Q  L:::::L               
+				M:::::::M::::M   M::::M:::::::MQ:::::O     Q:::::Q  L:::::L               
+				M::::::M M::::M M::::M M::::::MQ:::::O     Q:::::Q  L:::::L               
+				M::::::M  M::::M::::M  M::::::MQ:::::O     Q:::::Q  L:::::L               
+				M::::::M   M:::::::M   M::::::MQ:::::O     Q:::::Q  L:::::L               
+				M::::::M    M:::::M    M::::::MQ:::::O  QQQQ:::::Q  L:::::L               
+				M::::::M     MMMMM     M::::::MQ::::::O Q::::::::Q  L:::::L         LLLLLL
+				M::::::M               M::::::MQ:::::::QQ::::::::QLL:::::::LLLLLLLLL:::::L
+				M::::::M               M::::::M QQ::::::::::::::Q L::::::::::::::::::::::L
+				M::::::M               M::::::M   QQ:::::::::::Q  L::::::::::::::::::::::L
+				MMMMMMMM               MMMMMMMM     QQQQQQQQ::::QQLLLLLLLLLLLLLLLLLLLLLLLL
+				                                            Q:::::Q                       
+				                                             QQQQQQ"
+echo "							Welcome to MQL!!"
+echo "						    Go on when you are ready!!"
+echo "			 	___________________________________________________________________________"
+select choice in  "Create DataBase" "Create Table" "Insert Data" "Update Record(s) into a table" "Delete a DataBase" "Delete Table" "Delete Record(s) from Table" "Display Tables" "List Tables" "List Databases" "Search in a table by Primary Key" "Quit"
+do
+case $REPLY in
+1) Create_DataBase;;
+2) Create_Table;;
+3) Insert_Data;;
+4) Update_Records;;
+5) Delete_DataBase;;
+6) Delete_Table;;
+7) Delete_Record;;
+8) Display_Tables;;
+9) List_Tables;;
+10) List_DataBases;;
+11) Search_in_Table;;
+12) clear 
+    echo -e "
+
+
+
+
+				_________        _______ _       _                  _______            _ _                                        
+				\__***__|\     /(**___**(*(    /|*\    /\  |\     /(**___**|\     /|  (*(*)                                       
+				   )*(  |*)   (*|*(   )*|**\  (*|**\  /*/  (*\   /*|*(   )*|*)   (*|  |*|*|                                       
+				   |*|  |*(___)*|*(___)*|***\ |*|**(_/*/    \*(_)*/|*|   |*|*|   |*|  |*|*|                                       
+				   |*|  |* ___ *|**___**|*(\*\)*|***_*(      \***/ |*|   |*|*|   |*|  |*|*|                                       
+				   |*|  |*(   )*|*(   )*|*| \***|**( \*\      )*(  |*|   |*|*|   |*|  (_(_)                                       
+				   |*|  |*)   (*|*)   (*|*)  \**|**/  \*\     |*|  |*(___)*|*(___)*|   _ _                                        
+				   )_(  |/     \|/     \|/    )*|_/    \/     \_/  (_______(_______)  (_(_)                                       
+                                                                                                                  
+		         _______         _______    _______    _      ________________ _______    ______  _______             _   
+		|\     /(**___**|\     /(**____*\  (**___**)  (*(    /\__***__(**____*(**____*\  (**__**\(**___**|\     /|   (*\  
+		|*)   (*|*(   )*|*)   (*|*(    \/  |*(   )*|  |**\  (*|  )*(  |*(    \|*(    \/  |*(  \ *|*(   )*(*\   /*)   _\*\ 
+		|*(___)*|*(___)*|*|   |*|*(__      |*(___)*|  |***\ |*|  |*|  |*|     |*(__      |*|   )*|*(___)*|\*(_)*/   (_))*)
+		|**___**|**___**(*(   )*|**__)     |**___**|  |*(\*\)*|  |*|  |*|     |**__)     |*|   |*|**___**| \***/       |*|
+		|*(   )*|*(   )*|\*\_/*/|*(        |*(   )*|  |*| \***|  |*|  |*|     |*(        |*|   )*|*(   )*|  )*(      _ )*)
+		|*)   (*|*)   (*| \***/ |*(____/\  |*)   (*|  |*)  \**___)*(__|*(____/|*(____/\  |*(__/**|*)   (*|  |*|     (_/*/ 
+		|/     \|/     \|  \_/  (_______/  |/     \|  |/    )_\_______(_______(_______/  (______/|/     \|  \_/      (_/  
+                                                                                                                  
+"
+sleep 5s
+break;;
+
+*) echo $REPLY is not one of the choices.
+esac
+done 
+clear
